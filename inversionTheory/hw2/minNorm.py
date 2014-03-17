@@ -66,6 +66,7 @@ def plotMatrix(n):
   plot2D(s1,s2,g)
   plot2D(s1,s2,e)
   plot2D(s1,s2,v)
+
 ##################################################################
 # plots
 jet = ColorMap.JET

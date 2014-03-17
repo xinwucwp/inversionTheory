@@ -77,27 +77,6 @@ def applyForAll():
   plot1D(sx,mt,"Model","x",x2=mc2,title="model2")
   plot1D(sx,mt,"Model","x",x2=mc3,title="model3")
   #plot2D(v,cmap=jet)
-def applyForAll1():
-  mnm = MinNormModel()
-  e = zerodouble(n)
-  d = zerodouble(n)
-  v = zerodouble(n,n)
-  g = zerodouble(n,n)
-  alpha = zerodouble(n)
-  mnm.applyForData(d) 
-  mnm.kernelMatrix(g)
-  mnm.eigenDecompo(g,e,v)
-  mnm.coefficients(d,e,v,alpha)
-  mt = zerodouble(nm)
-  mc = zerodouble(nm)
-  mnm.trueAndConstructed(sm,alpha,mt,mc)
-  print e[0]/e[n-1]
-  print e[n-1]
-  #plot1D(sm,mt,"models","x",x2=mc,title="model_6")
-  #plot1D(sm,sub(mc,mt),"difference","x",title="diff_06")
-  #plot1D(s,e,"eigenvalues","index",title="eigenvalues")
-  #plotEigenvectors(s,v)
-  #plot1D(s,d,"data","index",title="data")
 ##################################################################
 # plots
 jet = ColorMap.JET
