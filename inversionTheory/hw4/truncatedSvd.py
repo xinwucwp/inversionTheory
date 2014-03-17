@@ -17,7 +17,7 @@ from edu.mines.jtk.ogl.Gl import *
 from edu.mines.jtk.util import *
 from edu.mines.jtk.util.ArrayMath import *
 
-from hw3 import *
+from hw4 import *
 
 #############################################################################
 # parameters
@@ -27,81 +27,98 @@ dx = 0.01
 fx = dx*0.5
 s1 = Sampling(nx,1,0)
 s2 = Sampling(nk,1,0)
+sf = Sampling(nk,1,0)
 sx = Sampling(nx,dx,fx)
-pngDir = "../../../HW3/images/"
-dataDir = "../../../HW3/data/"
+sigma = 0.05
+pngDir = "../../../HW4/images/"
+dataDir = "../../../HW4/data/"
 #############################################################################
 
 def main(args):
   applyForAll()
 def applyForAll():
-  m = readData(nx,2,"model")
-  mt = m[1]
+  g  = zerodouble(nx,nk) 
+  a = zerodouble(nx,nk) 
+  sfi = SvdForInverse()
+  sfi.constructG(sx,g)
+  div(g,sigma,a)
+  plot2D(s1,s2,a,1000,"nk","nx","A_ij",cmap=jet)#,png="A",orient=False)
+  #########################data
   dt = zerodouble(nk) 
   dn = zerodouble(nk) 
-  sfi = SvdForInverse()
-  g = sfi.constructG(nk,sx)
-  plot2D(s1,s2,g,1000,"nk","nx","G_ij",cmap=jet,png="G",orient=False)
-  #########################data
-  sfi.setForNoise(0.0,0.05)
+  b  = zerodouble(nk) 
+  m = readData(nx,2,"model")
+  mt = m[1]
+  sfi.setForNoise(0.0,sigma)
   sfi.computeData(g,mt,dt,dn)
-  plot1D(s2,dt,"Data","nk",x2=dn,title="data")
+  #sfi.normalizeData(sigma,dn,nd) 
+  div(dn,sigma,b)
+  div(dt,sigma,dt)
+  plot1D(s2,dt,"NormalizedData","nk",x2=b)#,title="NormalizedData")
   #########################svd
   s = zerodouble(nk) 
   u = zerodouble(nk,nk) 
   v = zerodouble(nk,nx) 
-  sfi.svdForG(g,s,u,v)
-  plot1D(s2,s,"Singular values","Index",title="ss")
-  plot2D(s2,s1,v,600,"v_i","Index (j)","v_ij",cmap=jet,png="vs")
-  plot2D(s2,s2,u,400,"u_i","Index (j)","u_ij",cmap=jet,png="us")
+  sfi.svdForG(a,s,u,v)
+  plot1D(s2,s,"Singular values","Index")#,title="ss")
+  #plot2D(s2,s1,v,600,"v_i","Index (j)","v_ij",cmap=jet,png="vs")
+  #plot2D(s2,s2,u,400,"u_i","Index (j)","u_ij",cmap=jet,png="us")
   ########################construct coefficients
   rd = zerodouble(nk) 
   ra = zerodouble(nk) 
   vsl = zerodouble(3,nk)
-  sfi.modelCoefficients(s,u,dt,rd,ra)
+  sfi.modelCoefficients(s,u,b,rd,ra)
   vsl[0]  = log10(abs(rd)) 
   vsl[1]  = log10(abs(s)) 
   vsl[2]  = log10(abs(ra))
-  plotMultiple1D(s2,vsl,png="coefficients")
+  plotMultiple1D(s2,vsl)#,png="coefficients")
+  ######################## dataMisfit, modelObjectFunction and Tikhonov curves
+  phiD = zerodouble(nk)
+  phiM = zerodouble(nk)
+  sfi.computePhiD(rd,phiD)
+  sfi.computePhiM(ra,phiM)
+  q = sfi.findQ(phiD,nk)
+  print q
+  plot1D(sf,log10(phiD),"Log10(phiD)","Index")#,title="dm")
+  phiD = log10(phiD)
+  for i in range(nk-1):
+    phiM[i+1] = log10(phiM[i+1])
+  plot1D(sf,phiM,"Log10(phiM)","Index")#,title="mof")
+  plotLogScale(phiM,phiD,"Log10(phiD)","Log10(phiM)")#,title="tc")
+  plot1D(sf,phiD,"Log10(phiM)&Log10(phiD)","x",x2=phiM)#,title="dm&mof")
   ########################model construct
   mc = zerodouble(nx)
   mc1 = zerodouble(nx)
   mc2 = zerodouble(nx)
   mc3 = zerodouble(nx)
-  sfi.modelConstruct([0,nk],s,u,v,dt,mc)
-  sfi.modelConstruct([0,7],s,u,v,dt,mc1)
-  sfi.modelConstruct([7,14],s,u,v,dt,mc2)
-  sfi.modelConstruct([14,nk],s,u,v,dt,mc3)
-  plot1D(sx,mt,"Model","x",x2=mc,title="model")
+  sfi.modelConstruct([0,nk ],s,u,v,b,mc)
+  sfi.modelConstruct([0,q+1],s,u,v,b,mc1)
+  sfi.modelConstruct([q+1,14],s,u,v,b,mc2)
+  sfi.modelConstruct([14,nk],s,u,v,b,mc3)
+  plot1D(sx,mt,"Model1","x",x2=mc,title="model")
   plot1D(sx,mt,"Model","x",x2=mc1,title="model1")
   plot1D(sx,mt,"Model","x",x2=mc2,title="model2")
   plot1D(sx,mt,"Model","x",x2=mc3,title="model3")
   #plot2D(v,cmap=jet)
-def applyForAll1():
-  mnm = MinNormModel()
-  e = zerodouble(n)
-  d = zerodouble(n)
-  v = zerodouble(n,n)
-  g = zerodouble(n,n)
-  alpha = zerodouble(n)
-  mnm.applyForData(d) 
-  mnm.kernelMatrix(g)
-  mnm.eigenDecompo(g,e,v)
-  mnm.coefficients(d,e,v,alpha)
-  mt = zerodouble(nm)
-  mc = zerodouble(nm)
-  mnm.trueAndConstructed(sm,alpha,mt,mc)
-  print e[0]/e[n-1]
-  print e[n-1]
-  #plot1D(sm,mt,"models","x",x2=mc,title="model_6")
-  #plot1D(sm,sub(mc,mt),"difference","x",title="diff_06")
-  #plot1D(s,e,"eigenvalues","index",title="eigenvalues")
-  #plotEigenvectors(s,v)
-  #plot1D(s,d,"data","index",title="data")
 ##################################################################
 # plots
 jet = ColorMap.JET
 gray = ColorMap.GRAY
+def plotLogScale(x,y,vlabel,hlabel,title=None):
+  sp = SimplePlot()
+  pv = sp.addPoints(x,y)
+  pv.setMarkStyle(PointsView.Mark.FILLED_CIRCLE)
+  #pv.setLineColor(Color.magenta)
+  pv.setLineColor(Color.black)
+  pv.setLineWidth(2.0)
+  pv.setMarkSize(8.0)
+  sp.setSize(1000+80,400)
+  sp.setVLabel(vlabel)
+  sp.setHLabel(hlabel)
+  sp.setFontSize(18)
+  if title:
+    sp.paintToPng(720,3.3,pngDir+title+".png")
+
 def plot1D(s,x1,vlabel,hlabel,x2=None,title=None):
   sp = SimplePlot()
   pv = sp.addPoints(s,x1)
@@ -145,8 +162,8 @@ def plotMultiple1D(s,v,png=None):
     pv.setLineColor(colors[i])
     #pv.setLineWidth(2.0)
     pv.setMarkSize(8.0)
-  sp.setVLimits(-12,2)
-  sp.setVInterval(2)
+  sp.setVLimits(-14,10)
+  sp.setVInterval(4)
   sp.setVLabel("Log10(v)")
   sp.setHLabel("Index")
   sp.setSize(1000+80,400)

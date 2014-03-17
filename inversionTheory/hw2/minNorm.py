@@ -27,7 +27,7 @@ s = Sampling(n,1.0,1.0)
 s1 = Sampling(n,1.0,1.0)
 s2 = Sampling(n,1.0,1.0)
 sm = Sampling(nm,dm,fm)
-pngDir = "../../HW2/images/"
+pngDir = "../../../HW2/images/"
 #############################################################################
 
 def main(args):
