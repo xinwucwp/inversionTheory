@@ -23,6 +23,7 @@ public class TikhonovInverse {
     _alphaS = alphaS;
     _alphaX = alphaX;
   }
+
   public void constructG(Sampling sx, double[][] G) {
     int nk = G.length;
     int nx = G[0].length; 
@@ -54,7 +55,7 @@ public class TikhonovInverse {
   public void addNoise(double[] d) {
     addNoise(_mean,_vari,d);
   }
-
+  
   public void solveForPhi(
     Method method, double wd, Sampling sb, double[][] G, double[] d, 
     double[] phiD, double[] phiM) 
@@ -68,12 +69,14 @@ public class TikhonovInverse {
     double[] mc  = zerodouble(n1);
     double[] dp  = zerodouble(n2);
     double[][] A  = zerodouble(n1,n1);
+    double[][] Gs = zerodouble(n1,n1);
     double[][] Wm = zerodouble(n1,n1);
     computeWmWm(_dx,_alphaS,_alphaX,Wm);
-    computeGWWG(G,wd,A);
+    computeGWWG(G,wd,Gs);
     applyForRhs(G,wd,d,b); 
     double beta = bb;
     for (int i=0; i<nb; i++, beta+=db) {
+      A = copy(Gs);
       if(method==Method.SMALLEST)
         addDiagonal(beta,A);
       if(method==Method.FLATTEST)
@@ -87,27 +90,7 @@ public class TikhonovInverse {
     }
   }
  
-  public void computeCurvature(double[] phiD, double[] phiM, double[] cv) {
-    int n = phiD.length;
-    double[] dd1 = zerodouble(n);
-    double[] dd2 = zerodouble(n);
-    double[] dm1 = zerodouble(n);
-    double[] dm2 = zerodouble(n);
-    firstDerivative(log10(phiD),dd1);
-    firstDerivative(log10(phiM),dm1);
-    secondDerivative(log10(phiD),dd2);
-    secondDerivative(log10(phiM),dm2);
-    for (int i=0; i<n; ++i) {
-      double dd1i = dd1[i];
-      double dd2i = dd2[i];
-      double dm1i = dm1[i];
-      double dm2i = dm2[i];
-      double numi = dm1i*dd2i-dd1i*dm2i;
-      double deni = pow((dd1i*dd1i+dm1i*dm1i),1.5);
-      cv[i] = numi/deni;
-    }
-  } 
-
+  
   public void computeGcv(
     Method method, double wd, Sampling sb, double[][] G, double[] d, 
     double[] gcv) 
@@ -117,34 +100,35 @@ public class TikhonovInverse {
     int nb = sb.getCount();
     double bb = sb.getFirst();
     double db = sb.getDelta();
-    double[] b1 = zerodouble(n1);
-    double[] b2 = zerodouble(n1);
-    double[] m1 = zerodouble(n1);
-    double[] m2 = zerodouble(n1);
-    double[] dp = zerodouble(n2);
-    double[] vp = zerodouble(n2);
-    double[] v  = zerodouble(n2);
+    double[] b   = zerodouble(n1);
+    double[] mc  = zerodouble(n1);
+    double[] dp  = zerodouble(n2);
     double[][] A  = zerodouble(n1,n1);
+    double[][] Gs = zerodouble(n1,n1);
     double[][] Wm = zerodouble(n1,n1);
-    randomVector(v);
+    double[][] Gw = zerodouble(n1,n1);
     computeWmWm(_dx,_alphaS,_alphaX,Wm);
-    computeGWWG(G,wd,A);
-    applyForRhs(G,wd,d,b1); 
-    applyForRhs(G,wd,v,b2); 
+    computeGWWG(G,wd,Gs);
+    applyForRhs(G,wd,d,b); 
     double beta = bb;
+    mul(G,1.0/(wd*wd),Gw);
+    DMatrix dG  = new DMatrix(G);
+    DMatrix dGT = dG.transpose();
+    dGT = dGT.timesEquals(1.0/(wd*wd));
     for (int i=0; i<nb; i++, beta+=db) {
+      A = copy(Gs);
       if(method==Method.SMALLEST)
         addDiagonal(beta,A);
       if(method==Method.FLATTEST)
         applyWmWm(beta,Wm,A);
       DMatrix dA  = new DMatrix(A);
       DMatrix dAi = dA.inverse();
-      applyInverse(dAi.get(),b1,m1);
-      applyInverse(dAi.get(),b2,m2);
-      computeData(G,m1,dp);
-      computeData(G,m2,vp);
+      DMatrix dAG = dAi.times(dGT);
+      DMatrix dGAG = dG.times(dAG);
+      applyInverse(dAi.get(),b,mc);
+      computeData(G,mc,dp);
       double numi = computePhiD(wd,d,dp);
-      double deni = (double)n2-innerProduct(v,vp);
+      double deni = (double)n2-dGAG.trace();
       gcv[i] = (double)(n2*n2)*numi/(deni*deni);
     }
   }
@@ -170,6 +154,43 @@ public class TikhonovInverse {
     applyInverse(dAi.get(),b,mc);
   }
 
+  public void computeCurvature(double[] phiD, double[] phiM, double[] cv) {
+    int n = phiD.length;
+    double[] dd1 = zerodouble(n);
+    double[] dd2 = zerodouble(n);
+    double[] dm1 = zerodouble(n);
+    double[] dm2 = zerodouble(n);
+    firstDerivative(log10(phiD),dd1);
+    firstDerivative(log10(phiM),dm1);
+    secondDerivative(log10(phiD),dd2);
+    secondDerivative(log10(phiM),dm2);
+    for (int i=0; i<n; ++i) {
+      double dd1i = dd1[i];
+      double dd2i = dd2[i];
+      double dm1i = dm1[i];
+      double dm2i = dm2[i];
+      double numi = dm1i*dd2i-dd1i*dm2i;
+      double deni = pow((dd1i*dd1i+dm1i*dm1i),1.5);
+      cv[i] = -numi/deni;
+    }
+  } 
+
+  public double betaFromPhiD(Sampling sb, double r, double[] phiD) {
+    double beta = 0.0;
+    int n = sb.getCount();
+    double bb = sb.getFirst();
+    double db = sb.getDelta();
+    double dm = Double.POSITIVE_INFINITY; 
+    for (int i=0; i<n; ++i) {
+      double di = abs(phiD[i]-r); 
+      if (di<dm) {
+        dm = di;
+        beta = bb+db*(double)i; 
+      }
+    }
+    return beta; 
+  }
+  
   public double betaFromLcurve(Sampling sb, double[] cv) {
     int n = cv.length;
     double vm = Double.NEGATIVE_INFINITY; 
@@ -219,7 +240,6 @@ public class TikhonovInverse {
     Wm[0  ][0  ] = dx1+wsi;
     Wm[n-1][n-1] = dx1+wsi;
   }   
-
   private void applyWmWm(double beta, double[][] Wm, double[][] x) {
     int n = Wm.length;
     x[0][0] += beta*Wm[0][0];
@@ -229,7 +249,7 @@ public class TikhonovInverse {
       x[i-1][i] += beta*Wm[i-1][i];
     }
   }
-  
+
   //////////////////////////////////////////////////////////////
   // private
   private void addNoise(double mean, double vari, double[] d) {
@@ -261,7 +281,7 @@ public class TikhonovInverse {
     dA = dG.transposeTimes(dG); 
     dA.get(A); 
   }
- 
+  
   private void applyForRhs(double[][] G, double wd, double[] d, double[] b) {
     int n2 = G.length;
     int n1 = G[0].length;

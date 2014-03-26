@@ -23,119 +23,131 @@ from hw5 import *
 # parameters
 nk = 20
 nx = 100
-nb = 2000
-bb,db = 0.0005,0.0005
+nb = 1000
+bb,db = 0.01,0.01
 dx = 0.01
 fx = dx*0.5
 s1 = Sampling(nx,1,0)
 s2 = Sampling(nk,1,0)
 sb = Sampling(nb,db,bb)
 sx = Sampling(nx,dx,fx)
-sigma = 0.05
+xb = zerodouble(nb)
+for i in range(nb):
+  xb[i] = log10(bb+i*db)
+mean,sigma = 0.0,0.05
 alphaS,alphaX=1.0,0.25
-pngDir = "../../../HW4/images/"
-dataDir = "../../../HW4/data/"
+#pngDir = "../../../HW5/images/"
+#dataDir = "../../../HW5/data/"
+pngDir = "./images/"
+dataDir = "./data/"
 #############################################################################
 
 def main(args):
-  applyForAll()
-def applyForAll():
-  g = zerodouble(nx,nk) 
-  a = zerodouble(nx,nx) 
-  w = zerodouble(nx,nx) 
-  ti = TikhonovInverse()
-  ti.constructG(sx,g)
-  ti.computeGWWG(g,sigma,a)
-  ti.computeWmWm(dx,alphaS,alphaX,w)
-  plot2D(s1,s2,g,1000,"nk","nx","G_ij",cmap=jet,png="G",orient=False)
-  plot2D(s1,s1,a,1000,"nx","nx","A_ij",cmap=jet,png="A",orient=False)
-  plot2D(s1,s1,w,1000,"nx","nx","Wm_ij",cmap=jet,png="Wm",orient=False)
-  #########################data
-  dt = zerodouble(nk) 
-  dn = zerodouble(nk) 
   m = readData(nx,2,"model")
   mt = m[1]
-  ti.setForNoise(0.0,sigma)
+  ti = TikhonovInverse()
+  g = zerodouble(nx,nk) 
+  ti.constructG(sx,g)
+  showWmWm()
+  computeData(g,mt)
+  applySmallest(g,mt)
+  applyFlattest(g,mt)
+def showWmWm():
+  ti = TikhonovInverse()
+  w = zerodouble(nx,nx) 
+  ti.computeWmWm(dx,alphaS,alphaX,w)
+  plot2D(s1,s1,w,600,"nx","nx","Wm_ij",cmap=jet,png="Wm",orient=False)
+
+  #########################data
+def computeData(g,mt):
+  dt = zerodouble(nk)
+  ti = TikhonovInverse()
+  ti.setForNoise(mean,sigma)
   ti.computeData(g,mt,dt)
-  copy(dt,dn)
-  ti.addNoise(dn)
+  #copy(dt,dn)
+  #ti.addNoise(dn)
+  #writeData("dn3",dn)
+  dn=readData1D(nk,"dn2")
   plot1D(s2,dt,"Data","nk",x2=dn,title="data")
   #########################Smallest
-  mc = zerodouble(nx)
+def applySmallest(g,mt):
+  dn=readData1D(nk,"dn2")
+  ti = TikhonovInverse()
   cv = zerodouble(nb)
+  mc1 = zerodouble(nx)
+  mc2 = zerodouble(nx)
+  mc3 = zerodouble(nx)
   phiD = zerodouble(nb)
   phiM = zerodouble(nb)
   ti.solveForPhi(TikhonovInverse.Method.SMALLEST,sigma,sb,g,dn,phiD,phiM)
   ti.computeCurvature(phiD,phiM,cv)
-  beta = ti.betaFromLcurve(sb,cv)
-  print beta
-  ti.optimalSolver(TikhonovInverse.Method.SMALLEST,sigma,beta,g,dn,mc)
-  plot1D(sb,log10(phiD),"phidSmall","Beta",title="phiD")
-  plot1D(sb,log10(phiM),"phimSmall","Beta",title="phiM")
-  plot1D(sb,cv,"CurvatureSmall","Beta",title="curvature")
-  plotLogScale(log10(phiM),log10(phiD),"Log10(phiD)","Log10(phiM)")#,title="tc")
-  plot1D(sx,mt,"SmallestModel","x",x2=mc,title="model")
-  #########################Flattest
-  ti.setForFlattest(dx,alphaS,alphaX)
-  ti.solveForPhi(TikhonovInverse.Method.FLATTEST,sigma,sb,g,dn,phiD,phiM)
-  ti.computeCurvature(phiD,phiM,cv)
-  beta = ti.betaFromLcurve(sb,cv)
-  print beta
-  ti.optimalSolver(TikhonovInverse.Method.FLATTEST,sigma,beta,g,dn,mc)
-  plot1D(sb,log10(phiD),"phidFlat","Beta",title="phiD")
-  plot1D(sb,log10(phiM),"phimFlat","Beta",title="phiM")
-  plot1D(sb,cv,"CurvatureFlat","Beta",title="curvature")
-  plotLogScale(log10(phiM),log10(phiD),"Log10(phiD)","Log10(phiM)")#,title="tc")
-  plot1D(sx,mt,"FlattestModelLcurve","x",x2=mc,title="model")
- 
-  #########################Gcv
+  beta1 = ti.betaFromPhiD(sb,20.0,phiD)
+  beta2 = ti.betaFromLcurve(sb,cv)
+  print "beta1=";print beta1
+  print "beta2=";print beta2
+  ti.optimalSolver(TikhonovInverse.Method.SMALLEST,sigma,beta1,g,dn,mc1)
+  #plot1D(sx,mt,"SmallestModel","x",x2=mc,title="smallestModel1")
+  ti.optimalSolver(TikhonovInverse.Method.SMALLEST,sigma,beta2,g,dn,mc2)
+  #plot1D(sx,mt,"SmallestModel","x",x2=mc,title="smallestModel2")
+  plot1D(xb,log10(phiD),"log10(phiD)","Beta",title="smallestPhiD")
+  plot1D(xb,log10(phiM),"log10(phiM)","Beta",title="smallestPhiM")
+  plotLogScale(xb,cv,"curvature","Beta",title="smallestCurvature")
+  plotLogScale(log10(phiM),log10(phiD),"Log10(phiD)","Log10(phiM)",title="smallestT")
+  #########################Gcv for smallest
   gcv = zerodouble(nb)
   ti.setForFlattest(dx,alphaS,alphaX)
-  ti.computeGcv(TikhonovInverse.Method.FLATTEST,sigma,sb,g,dn,gcv)
-  plot1D(sb,gcv,"GCV","Beta",title="gcv")
-  beta = ti.betaFromGcv(sb,gcv)
-  print beta
-  ti.optimalSolver(TikhonovInverse.Method.FLATTEST,sigma,beta,g,dn,mc)
-  plot1D(sx,mt,"FlattestModelGcv","x",x2=mc,title="model")
-  '''
-  ########################construct coefficients
-  rd = zerodouble(nk) 
-  ra = zerodouble(nk) 
-  vsl = zerodouble(3,nk)
-  sfi.modelCoefficients(s,u,b,rd,ra)
-  vsl[0]  = log10(abs(rd)) 
-  vsl[1]  = log10(abs(s)) 
-  vsl[2]  = log10(abs(ra))
-  plotMultiple1D(s2,vsl)#,png="coefficients")
-  ######################## dataMisfit, modelObjectFunction and Tikhonov curves
-  phiD = zerodouble(nk)
-  phiM = zerodouble(nk)
-  sfi.computePhiD(rd,phiD)
-  sfi.computePhiM(ra,phiM)
-  q = sfi.findQ(phiD,nk)
-  print q
-  plot1D(sf,log10(phiD),"Log10(phiD)","Index")#,title="dm")
-  phiD = log10(phiD)
-  for i in range(nk-1):
-    phiM[i+1] = log10(phiM[i+1])
-  plot1D(sf,phiM,"Log10(phiM)","Index")#,title="mof")
-  plotLogScale(phiM,phiD,"Log10(phiD)","Log10(phiM)")#,title="tc")
-  plot1D(sf,phiD,"Log10(phiM)&Log10(phiD)","x",x2=phiM)#,title="dm&mof")
-  ########################model construct
-  mc = zerodouble(nx)
+  ti.computeGcv(TikhonovInverse.Method.SMALLEST,sigma,sb,g,dn,gcv)
+  plotLogScale(xb,log10(gcv),"GCV","Beta",title="smallestGcv")
+  beta3 = ti.betaFromGcv(sb,gcv)
+  print "beta3=";print beta3
+  ti.optimalSolver(TikhonovInverse.Method.SMALLEST,sigma,beta3,g,dn,mc3)
+  ms = zerodouble(4,nx) 
+  ms[0],ms[1] = mt, mc1;
+  ms[2],ms[3] = mc2,mc3;
+  cs = [Color.blue,Color.red,Color.green,Color.orange]
+  plotMultiple1D(sx,ms,cs,"Models","x",png="smallestModels")
+
+  #########################Flattest
+def applyFlattest(g,mt):
+  dn=readData1D(nk,"dn2")
+  ti = TikhonovInverse()
+  cv = zerodouble(nb)
   mc1 = zerodouble(nx)
   mc2 = zerodouble(nx)
   mc3 = zerodouble(nx)
-  sfi.modelConstruct([0,nk ],s,u,v,b,mc)
-  sfi.modelConstruct([0,q+1],s,u,v,b,mc1)
-  sfi.modelConstruct([q+1,14],s,u,v,b,mc2)
-  sfi.modelConstruct([14,nk],s,u,v,b,mc3)
-  plot1D(sx,mt,"Model1","x",x2=mc,title="model")
-  plot1D(sx,mt,"Model","x",x2=mc1,title="model1")
-  plot1D(sx,mt,"Model","x",x2=mc2,title="model2")
-  plot1D(sx,mt,"Model","x",x2=mc3,title="model3")
-  #plot2D(v,cmap=jet)
-  '''
+  phiD = zerodouble(nb)
+  phiM = zerodouble(nb)
+  ti.setForFlattest(dx,alphaS,alphaX)
+  ti.solveForPhi(TikhonovInverse.Method.FLATTEST,sigma,sb,g,dn,phiD,phiM)
+  ti.computeCurvature(phiD,phiM,cv)
+  beta1 = ti.betaFromPhiD(sb,20.0,phiD)
+  beta2 = ti.betaFromLcurve(sb,cv)
+  print "beta1=";print beta1
+  print "beta2=";print beta2
+  ti.setForFlattest(dx,alphaS,alphaX)
+  ti.optimalSolver(TikhonovInverse.Method.FLATTEST,sigma,beta1,g,dn,mc1)
+  #plot1D(sx,mt,"FlattestModel","x",x2=mc1,title="flattestModel1")
+  ti.optimalSolver(TikhonovInverse.Method.FLATTEST,sigma,beta2,g,dn,mc2)
+  #plot1D(sx,mt,"FlattestModel","x",x2=mc2,title="flattestModel2")
+  plot1D(xb,log10(phiD),"log10(phiD)","Beta",title="flattestPhiD")
+  plot1D(xb,log10(phiM),"log10(phiM)","Beta",title="flattestPhiM")
+  plotLogScale(xb,cv,"Curvature","Beta",title="flattestCurvature")
+  plotLogScale(log10(phiM),log10(phiD),"Log10(phiD)","Log10(phiM)",title="flattestT")
+  #########################Gcv for flattest
+  gcv = zerodouble(nb)
+  ti.setForFlattest(dx,alphaS,alphaX)
+  ti.computeGcv(TikhonovInverse.Method.FLATTEST,sigma,sb,g,dn,gcv)
+  plotLogScale(xb,log10(gcv),"GCV","Beta",title="flattestGcv")
+  beta3 = ti.betaFromGcv(sb,gcv)
+  print "beta3=";print beta3
+  ti.optimalSolver(TikhonovInverse.Method.FLATTEST,sigma,beta3,g,dn,mc3)
+  #plot1D(sx,mt,"FlattestModel","x",x2=mc3,title="flattestModel3")
+  ms = zerodouble(4,nx) 
+  ms[0],ms[1] = mt, mc1;
+  ms[2],ms[3] = mc2,mc3;
+  cs = [Color.blue,Color.red,Color.green,Color.orange]
+  plotMultiple1D(sx,ms,cs,"Models","x",png="flattestModels")
+  
 ##################################################################
 # plots
 jet = ColorMap.JET
@@ -182,24 +194,19 @@ def plot1D(s,x1,vlabel,hlabel,x2=None,title=None):
   if title:
     sp.paintToPng(720,3.3,pngDir+title+".png")
 
-def plotMultiple1D(s,v,png=None):
+def plotMultiple1D(s,v,cs,vlabel,hlabel,png=None):
   sp = SimplePlot()
-  colors = [Color.red,Color.green,Color.blue]
-  '''
-  colors = [Color.red,Color.magenta,Color.blue,
-            Color.cyan,Color.green,Color.yellow]
-  '''
-  for i in range(3):
+  n = len(cs)
+  for i in range(n):
     pv = sp.addPoints(s,v[i])
     pv.setMarkStyle(PointsView.Mark.FILLED_CIRCLE)
-    pv.setMarkColor(colors[i])
-    pv.setLineColor(colors[i])
-    #pv.setLineWidth(2.0)
+    pv.setMarkColor(cs[i])
+    pv.setLineColor(cs[i])
+    pv.setLineWidth(2.0)
     pv.setMarkSize(8.0)
-  sp.setVLimits(-14,10)
-  sp.setVInterval(4)
-  sp.setVLabel("Log10(v)")
-  sp.setHLabel("Index")
+  #sp.setVLimits(-14,10)
+  sp.setVLabel(vlabel)
+  sp.setHLabel(hlabel)
   sp.setSize(1000+80,400)
   if png:
     sp.paintToPng(720,3.3,pngDir+png+".png")
@@ -207,7 +214,6 @@ def plotMultiple1D(s,v,png=None):
 def plot2D(s1,s2,x,wd,vlabel,hlabel,cbar,cmap=jet,png=None,orient=True):
   n1 = s1.getCount()
   n2 = s2.getCount()
-  #pv.setInterpolation(PixelsView.Interpolation.NEAREST);
   if orient:
     sp = SimplePlot(SimplePlot.Origin.LOWER_LEFT)
     pv = sp.addPixels(s1,s2,x)
@@ -216,14 +222,13 @@ def plot2D(s1,s2,x,wd,vlabel,hlabel,cbar,cmap=jet,png=None,orient=True):
     sp = SimplePlot(SimplePlot.Origin.LOWER_LEFT)
     pv = sp.addPixels(s1,s2,x)
     pv.setOrientation(PixelsView.Orientation.X1RIGHT_X2UP)
-  pv.setColorModel(cmap);
+  pv.setInterpolation(PixelsView.Interpolation.NEAREST)
+  pv.setColorModel(cmap)
   dims = [n1,n2]
-  sp.setSize(wd+80,400);
+  sp.setSize(wd+80,400)
   sp.setVInterval(2)
-  if (wd>400):
-    sp.setHInterval(10)
-  else:
-    sp.setHInterval(2)
+  sp.setHInterval(10)
+  sp.setVInterval(10)
   cb=sp.addColorBar()
   cb.setLabel(cbar)
   cb.setWidthMinimum(80)
@@ -240,6 +245,22 @@ def readData(n1,n2,name):
   ais.readDoubles(data)
   ais.close()
   return data
+
+def readData1D(n1,name):
+  fileName = dataDir+name+".dat"
+  data = zerodouble(n1)
+  ais = ArrayInputStream(fileName)
+  ais.readDoubles(data)
+  ais.close()
+  return data
+
+def writeData(name,data):
+  fileName = dataDir+name+".dat"
+  aos = ArrayOutputStream(fileName)
+  aos.writeDoubles(data)
+  aos.close()
+  return data
+
 
 #############################################################################
 # Do everything on Swing thread.

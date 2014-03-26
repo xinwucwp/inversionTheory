@@ -31,7 +31,8 @@ sf = Sampling(nk,1,0)
 sx = Sampling(nx,dx,fx)
 sigma = 0.05
 pngDir = "../../../HW4/images/"
-dataDir = "../../../HW4/data/"
+#dataDir = "../../../HW4/data/"
+dataDir = "./data/"
 #############################################################################
 
 def main(args):
