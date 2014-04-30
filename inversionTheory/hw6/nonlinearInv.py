@@ -44,7 +44,8 @@ dataDir = "./data/"
 #############################################################################
 
 def main(args):
-  beta =[1.0e-1,1.0e-2,1.0e-3,1.0e-4,1.0e-5,1.0e-6]
+  #beta =[1.0e-1,1.0e-2,1.0e-3,1.0e-4,1.0e-5,1.0e-6]
+  beta = [1.0e-4]
   da = readData(48,4,'hw06')
   xo = da[0]
   do = da[2]
@@ -55,7 +56,6 @@ def main(args):
   ni.setPerturb(35.0)
   ni.setWmWd(alphaX,alphaS,dSigma)
   ms = zerofloat(nm,len(beta))
-  '''
   for i in range(len(beta)):
     print "beta="
     print beta[i]
@@ -64,15 +64,16 @@ def main(args):
     ni.inverter(sm,beta[i],do,mk)
     copy(mk,ms[i]) 
     plot1D(sm,mk,"Model","x(m)",title="model")
-  writeData("models",ms)
-  '''
+  #writeData("models",ms)
   ms = readData(nm,6,"models")
   cs = [Color.blue,Color.cyan,Color.green,Color.yellow,Color.orange,Color.red]
   plotMultiple1D(sm,ms,cs,"Recovered models","x(m)",png="models")
   plot1D(sd,do,"Observed data","x(m)",title="data")
+  '''
   phi=[321130.03,4815.872,150.72491,30.443737,19.774208]
   sh = Sampling(5,1.0,0.0)
   plot1D(sh,phi,"Object function","Gauss-Newton iterates",title="gs")
+  '''
 ##################################################################
 # plots
 jet = ColorMap.JET
